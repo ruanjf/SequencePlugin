@@ -1,10 +1,13 @@
 package org.intellij.sequencer;
 
 import com.intellij.openapi.actionSystem.*;
+import com.intellij.openapi.project.Project;
+import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiMethod;
 import com.intellij.ui.components.JBScrollBar;
 import com.intellij.ui.components.JBScrollPane;
+import com.intellij.util.ui.JBUI;
 import com.intellij.util.ui.UIUtil;
 import icons.SequencePluginIcons;
 import org.intellij.sequencer.diagram.*;
@@ -14,12 +17,16 @@ import org.intellij.sequencer.generator.SequenceParams;
 import org.intellij.sequencer.generator.filters.*;
 import org.intellij.sequencer.ui.MyButtonlessScrollBarUI;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import javax.swing.filechooser.FileFilter;
 import javax.swing.plaf.basic.BasicButtonUI;
 import java.awt.*;
 import java.io.File;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 
@@ -54,6 +61,7 @@ public class SequencePanel extends JPanel {
         actionGroup.add(new ExportAction());
         actionGroup.add(new SaveAsAction());
         actionGroup.add(new LoadAction());
+        actionGroup.add(new SaveAsTextAction());
 
         ActionManager actionManager = ActionManager.getInstance();
         ActionToolbar actionToolbar = actionManager.createActionToolbar("SequencerToolbar", actionGroup, false);
@@ -426,6 +434,116 @@ public class SequencePanel extends JPanel {
                     new ImplementClassFilter(impl)
             );
             generate();
+        }
+    }
+
+    private class SaveAsTextAction extends AnAction {
+
+        private boolean mergeImpl = true;
+        private String ignoreClassesStr = "" +
+                "com.peoples.daily.base.web.ResponseResp;" +
+                "com.peoples.daily.common.exception.BizException;";
+
+        public SaveAsTextAction() {
+            super("Save As Text ...", "Export Diagram to Text", SequencePluginIcons.EXPORT_TEXT_ICON);
+        }
+
+        @Override
+        public void actionPerformed(@NotNull AnActionEvent event) {
+            Dw dw = new Dw(event.getProject());
+            dw.show();
+        }
+
+        @Override
+        public void update(@NotNull AnActionEvent e) {
+            e.getPresentation().setEnabled(_display.getDiagram().nonEmpty());
+        }
+
+        private class Dp extends JPanel {
+            private final JCheckBox jCheckBox;
+            private final JTextField jTextField;
+            private final JTextArea textArea;
+            public Dp() {
+                super(new GridBagLayout());
+                setSize(800, 500);
+                GridBagConstraints gc = new GridBagConstraints();
+
+                gc.gridx = 0;
+                gc.gridy = 0;
+                gc.anchor = GridBagConstraints.CENTER;
+                JPanel panel = new JPanel(new GridBagLayout());
+                panel.setBorder(BorderFactory.createTitledBorder("Options"));
+                add(panel, gc);
+
+                gc.anchor = GridBagConstraints.WEST;
+                gc.gridwidth = 2;
+                gc.insets = JBUI.emptyInsets();
+                jCheckBox = new JCheckBox("合并接口和实现", mergeImpl);
+                panel.add(jCheckBox, gc);
+
+                gc.gridx = 0;
+                gc.gridy = 1;
+                gc.gridwidth = 1;
+                gc.anchor = GridBagConstraints.WEST;
+                JLabel jLabel = new JLabel("忽略Class:");
+                panel.add(jLabel, gc);
+
+                gc.gridx = 1;
+                gc.insets = JBUI.insets(5);
+                gc.anchor = GridBagConstraints.WEST;
+                jTextField = new JTextField(ignoreClassesStr);
+                jLabel.setLabelFor(jTextField);
+                panel.add(jTextField, gc);
+
+                gc.gridx = 0;
+                gc.gridy = 1;
+                gc.insets = JBUI.emptyInsets();
+                gc.anchor = GridBagConstraints.CENTER;
+                textArea = new JTextArea("");
+                textArea.setRows(20);
+                textArea.setColumns(88);
+                JBScrollPane scrollPane = new JBScrollPane(textArea);
+                add(scrollPane, gc);
+            }
+            public boolean isMergeImpl() {
+                return jCheckBox.isSelected();
+            }
+            public String getIgnoreClasses() {
+                return jTextField.getText();
+            }
+            public void setTextSequence(String text) {
+                textArea.setText(text);
+            }
+        }
+
+        private class Dw extends DialogWrapper {
+            private final Dp dp = new Dp();
+            public Dw(Project project) {
+                super(project);
+                setResizable(false);
+                setTitle("Sequence Diagram Save As Text");
+                setOKButtonText("generator");
+                init();
+            }
+            @Override
+            protected JComponent createCenterPanel() {
+                return dp;
+            }
+            @Override
+            protected void doOKAction() {
+                String text = null;
+                try {
+                    mergeImpl = dp.isMergeImpl();
+                    ignoreClassesStr = dp.getIgnoreClasses();
+                    text = TextSequence.saveAsMermaid(_model.getText(), mergeImpl, new HashSet<>(Arrays.asList(ignoreClassesStr.split("\\s*;\\s*"))));
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    JOptionPane.showMessageDialog(SequencePanel.this, e.getMessage(), "Exception", JOptionPane.ERROR_MESSAGE);
+                }
+                if (text != null) {
+                    dp.setTextSequence(text);
+                }
+            }
         }
     }
 

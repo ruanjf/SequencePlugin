@@ -43,7 +43,8 @@ public class ColorMapEntry {
         if(matcher==null) {
             // simply pattern to actual regex
             String regex = getRegex().replace(".", "\\.").replace("*", ".*");
-            matcher = Pattern.compile(regex).asMatchPredicate();
+//            matcher = Pattern.compile(regex).asMatchPredicate();
+            matcher = t -> Pattern.compile(regex).matcher(t).matches();
         }
         if(fullName==null) {
             return false;
